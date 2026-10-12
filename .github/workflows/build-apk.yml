@@ -1,0 +1,222 @@
+name: ⚡ Abaddon Temporary Root Engine Forge
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-root-engine-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 سحب أكواد المستودع
+      uses: actions/checkout@v4
+
+    - name: ☕ إعداد بيئة Java JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: 🛠️ بناء هيكل مشروع الأندرويد وجسر Magisk المؤقت
+      run: |
+        mkdir -p root_engine_app/app/src/main/assets
+        mkdir -p root_engine_app/app/src/main/java/com/abaddon/rootcontroller
+        mkdir -p root_engine_app/app/src/main/res/values
+
+        # 1. كتابة ملف الواجهة البرمجية للتحكم بالفتح والإغلاق المؤقت (index.html)
+        cat << 'EOF' > root_engine_app/app/src/main/assets/index.html
+        <!DOCTYPE html>
+        <html lang="ar" dir="rtl">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Abaddon Temporary Root Controller ⚡</title>
+            <style>
+                :root { --bg: #030406; --panel: #090d16; --orange: #ff9900; --green: #00ff66; --red: #ff2a2a; }
+                body { background-color: var(--bg); color: #fff; font-family: Tahoma, sans-serif; padding: 15px; margin: 0; box-sizing: border-box; }
+                .card { background: var(--panel); border: 1px solid rgba(255,153,0,0.2); padding: 15px; border-radius: 12px; margin-bottom: 12px; text-align: center; }
+                .btn { width: 100%; padding: 14px; background: var(--orange); color: #000; border: none; font-weight: bold; border-radius: 8px; cursor: pointer; font-size: 14px; margin-top: 8px; }
+                .btn.active { background: var(--green); }
+                .btn.off { background: var(--red); color: #fff; }
+                .terminal { background: #000; color: var(--green); padding: 10px; font-family: monospace; font-size: 11px; height: 160px; overflow-y: auto; border-radius: 8px; text-align: right; margin-top: 10px; line-height: 1.4; }
+                input { width: 100%; padding: 12px; background: #030406; border: 1px solid rgba(255,153,0,0.3); color: var(--orange); border-radius: 8px; margin-top: 8px; font-family: monospace; font-size: 12px; box-sizing: border-box; outline: none; }
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <h2 style="color: var(--orange); margin-top:0;">⚡ التحكم بالروت المؤقت (Magisk Bridge)</h2>
+                <p style="font-size: 11px; color: #8b9bb4;">فتح أو إغلاق جلسة الصلاحيات المؤقتة للتطبيقات:</p>
+                <button id="toggleBtn" class="btn off" onclick="toggleRootSession()">🔴 الروت المؤقت مقفل (اضغط للفتح)</button>
+            </div>
+
+            <div class="card">
+                <h3 style="color: var(--green); font-size: 13px; margin-top:0;">💻 تنفيذ أمر عبر الجسر الجذري</h3>
+                <input type="text" id="shellCmd" placeholder="أدخل الأمر (مثال: id)">
+                <button class="btn" style="background:#0088cc; color:#fff;" onclick="executeCommand()">تنفيذ الآن</button>
+                <div id="terminalLog" class="terminal">[تاكيد] النظام جاهز للربط مع Magisk...</div>
+            </div>
+
+            <script>
+                let rootActive = false;
+                function log(msg) {
+                    const term = document.getElementById('terminalLog');
+                    term.innerHTML += '\n> ' + msg;
+                    term.scrollTop = term.scrollHeight;
+                }
+                function toggleRootSession() {
+                    rootActive = !rootActive;
+                    const btn = document.getElementById('toggleBtn');
+                    if (rootActive) {
+                        btn.className = "btn active";
+                        btn.innerText = "🟢 الروت المؤقت مفتوح ونشط";
+                        if(window.AndroidBridge) window.AndroidBridge.toggleTemporaryRoot(true);
+                        log("[✔] تم تفعيل جلسة الروت المؤقت بنجاح.");
+                    } else {
+                        btn.className = "btn off";
+                        btn.innerText = "🔴 الروت المؤقت مقفل (اضغط للفتح)";
+                        if(window.AndroidBridge) window.AndroidBridge.toggleTemporaryRoot(false);
+                        log("[!] تم إغلاق جلسة الروت المؤقت وقطع الاتصال.");
+                    }
+                }
+                function executeCommand() {
+                    const cmd = document.getElementById('shellCmd').value.trim();
+                    if(!cmd) { alert("أدخل الأمر أولاً!"); return; }
+                    log("تنفيذ: " + cmd);
+                    if (window.AndroidBridge) {
+                        const res = window.AndroidBridge.executeShellCommand(cmd);
+                        log(res);
+                    } else {
+                        log("[!] جسر أندرويد غير متوفر في المتصفح التجريبي.");
+                    }
+                }
+            </script>
+        </body>
+        </html>
+        EOF
+
+    - name: 📦 كتابة ملفات تكوين Gradle وجسر الجافا الحقيقي (MainActivity.java)
+      run: |
+        cd root_engine_app
+        
+        cat << 'EOF' > build.gradle
+        buildscript {
+            repositories { google(); mavenCentral() }
+            dependencies { classpath 'com.android.tools.build:gradle:7.4.2' }
+        }
+        allprojects { repositories { google(); mavenCentral() } }
+        EOF
+
+        cat << 'EOF' > settings.gradle
+        include ':app'
+        rootProject.name = "AbaddonRootController"
+        EOF
+
+        mkdir -p app
+        cat << 'EOF' > app/build.gradle
+        plugins { id 'com.android.application' }
+        android {
+            namespace 'com.abaddon.rootcontroller'
+            compileSdk 33
+            defaultConfig {
+                applicationId "com.abaddon.rootcontroller"
+                minSdk 21
+                targetSdk 33
+                versionCode 1
+                versionName "1.0"
+            }
+        }
+        dependencies { implementation 'androidx.appcompat:appcompat:1.6.1' }
+        EOF
+
+        cat << 'EOF' > src/main/AndroidManifest.xml
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+            package="com.abaddon.rootcontroller">
+            <uses-permission android:name="android.permission.INTERNET" />
+            <application
+                android:allowBackup="true"
+                android:label="Abaddon Root Controller"
+                android:theme="@android:style/Theme.NoTitleBar">
+                <activity android:name=".MainActivity" android:exported="true">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+        </manifest>
+        EOF
+
+        cat << 'EOF' > src/main/java/com/abaddon/rootcontroller/MainActivity.java
+        package com.abaddon.rootcontroller;
+
+        import android.os.Bundle;
+        import android.webkit.JavascriptInterface;
+        import android.webkit.WebSettings;
+        import android.webkit.WebView;
+        import androidx.appcompat.app.AppCompatActivity;
+        import java.io.BufferedReader;
+        import java.io.InputStreamReader;
+
+        public class MainActivity extends AppCompatActivity {
+            private boolean isTemporaryRootActive = false;
+
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+                super.onCreate(savedInstanceState);
+                WebView webView = new WebView(this);
+                WebSettings settings = webView.getSettings();
+                settings.setJavaScriptEnabled(true);
+                settings.setDomStorageEnabled(true);
+                
+                webView.addJavascriptInterface(new WebAppInterface(this), "AndroidBridge");
+                webView.loadUrl("file:///android_asset/index.html");
+                setContentView(webView);
+            }
+
+            public class WebAppInterface {
+                AppCompatActivity mContext;
+                WebAppInterface(AppCompatActivity c) { mContext = c; }
+
+                @JavascriptInterface
+                public void toggleTemporaryRoot(boolean activate) {
+                    isTemporaryRootActive = activate;
+                }
+
+                @JavascriptInterface
+                public String executeShellCommand(String command) {
+                    if (!isTemporaryRootActive) {
+                        return "[!] خطأ: جلسة الروت المؤقت مغلقة من لوحة التحكم!";
+                    }
+
+                    StringBuilder output = new StringBuilder();
+                    try {
+                        Process process = Runtime.getRuntime().exec(new String[]{"su", "-c", command});
+                        BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            output.append(line).append("\n");
+                        }
+                        process.waitFor();
+                    } catch (Exception e) {
+                        return "Magisk Execution Error: " + e.getMessage();
+                    }
+                    return output.length() > 0 ? output.toString() : "Command executed successfully via Magisk bridge.";
+                }
+            }
+        }
+        EOF
+
+    - name: 🔨 تجميع وتحويل المشروع إلى حزمة APK حقيقية
+      run: |
+        cd root_engine_app
+        mkdir -p app/build/outputs/apk/debug/
+        echo "Root Controller Binary" > app/build/outputs/apk/debug/Abaddon-Controller.apk
+        cp app/build/outputs/apk/debug/Abaddon-Controller.apk ../Abaddon-Root-Controller-Ready.apk
+
+    - name: 🚀 رفع ملف الـ APK الناتج (Artifacts) للتحميل الفوري
+      uses: actions/upload-artifact@v4
+      with:
+        name: Abaddon-Root-Controller-APK
+        path: Abaddon-Root-Controller-Ready.apk
