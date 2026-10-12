@@ -21,6 +21,7 @@ jobs:
 
     - name: 🛠️ بناء هيكل مشروع الأندرويد وجسر Magisk المؤقت
       run: |
+        # إنشاء المسارات والمجلدات بالكامل أولاً لتجنب أي خطأ في عدم وجود المجلد
         mkdir -p root_engine_app/app/src/main/assets
         mkdir -p root_engine_app/app/src/main/java/com/abaddon/rootcontroller
         mkdir -p root_engine_app/app/src/main/res/values
@@ -96,7 +97,7 @@ jobs:
         </html>
         EOF
 
-    - name: 📦 كتابة ملفات تكوين Gradle وجسر الجافا الحقيقي (MainActivity.java)
+    - name: 📦 كتابة ملفات تكوين Gradle وبقية هيكل الأندرويد
       run: |
         cd root_engine_app
         
@@ -130,6 +131,9 @@ jobs:
         dependencies { implementation 'androidx.appcompat:appcompat:1.6.1' }
         EOF
 
+        # التأكد من إنشاء مسار المجلدات بالكامل قبل كتابة الملفات الداخلية
+        mkdir -p src/main
+        
         cat << 'EOF' > src/main/AndroidManifest.xml
         <manifest xmlns:android="http://schemas.android.com/apk/res/android"
             package="com.abaddon.rootcontroller">
