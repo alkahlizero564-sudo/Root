@@ -1,4 +1,4 @@
-name: ⚡ Abaddon Temporary Root Engine Forge
+name: ⚡ Abaddon True Android APK Forge
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-root-engine-apk:
+  build-real-apk:
     runs-on: ubuntu-latest
 
     steps:
@@ -19,14 +19,13 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: 🛠️ بناء هيكل مشروع الأندرويد وجسر Magisk المؤقت
+    - name: 🛠️ إنشاء هيكل مشروع الأندرويد المتكامل
       run: |
-        # إنشاء كافة المسارات والمجلدات المطلوبة مسبقاً بدقة تامة
         mkdir -p root_engine_app/app/src/main/assets
         mkdir -p root_engine_app/app/src/main/java/com/abaddon/rootcontroller
         mkdir -p root_engine_app/app/src/main/res/values
 
-        # 1. كتابة ملف الواجهة البرمجية للتحكم بالفتح والإغلاق المؤقت (index.html)
+        # 1. كتابة واجهة التحكم (index.html)
         cat << 'EOF' > root_engine_app/app/src/main/assets/index.html
         <!DOCTYPE html>
         <html lang="ar" dir="rtl">
@@ -56,7 +55,7 @@ jobs:
                 <h3 style="color: var(--green); font-size: 13px; margin-top:0;">💻 تنفيذ أمر عبر الجسر الجذري</h3>
                 <input type="text" id="shellCmd" placeholder="أدخل الأمر (مثال: id)">
                 <button class="btn" style="background:#0088cc; color:#fff;" onclick="executeCommand()">تنفيذ الآن</button>
-                <div id="terminalLog" class="terminal">[تاكيد] النظام جاهز للربط مع Magisk...</div>
+                <div id="terminalLog" class="terminal">[تأكيد] النظام جاهز للربط مع Magisk...</div>
             </div>
 
             <script>
@@ -97,7 +96,7 @@ jobs:
         </html>
         EOF
 
-    - name: 📦 كتابة ملفات تكوين Gradle وجسر الجافا الحقيقي
+    - name: 📦 كتابة ملفات تكوين Gradle وجسر الجافا
       run: |
         cd root_engine_app
         
@@ -131,7 +130,6 @@ jobs:
         dependencies { implementation 'androidx.appcompat:appcompat:1.6.1' }
         EOF
 
-        # التأكد من إنشاء كافة مجلدات المصدر قبل تفريغ الملفات الداخلية
         mkdir -p src/main/java/com/abaddon/rootcontroller
 
         cat << 'EOF' > src/main/AndroidManifest.xml
@@ -212,15 +210,12 @@ jobs:
         }
         EOF
 
-    - name: 🔨 تجميع وتحويل المشروع إلى حزمة APK حقيقية
-      run: |
-        cd root_engine_app
-        mkdir -p app/build/outputs/apk/debug/
-        echo "Root Controller Binary" > app/build/outputs/apk/debug/Abaddon-Controller.apk
-        cp app/build/outputs/apk/debug/Abaddon-Controller.apk ../Abaddon-Root-Controller-Ready.apk
+        # توليد ملف Gradle Wrapper وتطبيق البناء الحقيقي
+        gradle wrapper --gradle-version 7.4.2
+        ./gradlew assembleDebug
 
-    - name: 🚀 رفع ملف الـ APK الناتج (Artifacts) للتحميل الفوري
+    - name: 🚀 رفع ملف الـ APK الحقيقي الناتج (Artifacts)
       uses: actions/upload-artifact@v4
       with:
-        name: Abaddon-Root-Controller-APK
-        path: Abaddon-Root-Controller-Ready.apk
+        name: Abaddon-Real-Root-Controller
+        path: root_engine_app/app/build/outputs/apk/debug/app-debug.apk
